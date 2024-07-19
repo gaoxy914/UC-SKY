@@ -652,6 +652,9 @@ void UCSKY_Solver::group_dp() {
 }
 
 void UCSKY_Solver::sample_fim(const int& theta) {
+    srand((unsigned)time(nullptr));
+    srand48((unsigned)time(nullptr));
+
     sort(tuples.begin(), tuples.end(), [](const Tuple& t, const Tuple& s){
         return t.sum() < s.sum();
     });
@@ -704,8 +707,12 @@ void UCSKY_Solver::sample_fim(const int& theta) {
         if (S.size() >= l) {
             flag = true;
             // enumearte l subset
+            // cout << i << '\t';
+            // for (auto s : S) cout << tuples[s].id << '\t';
+            // cout << endl;
             vector<int> subset(l, 0);
             enum_l_subset(S, 0, subset, 0, freq);
+            // cout << "end enum\n";
         }
         /* cout << S[i].size() << endl;
         for (auto t : S[i]) {
@@ -761,6 +768,8 @@ void UCSKY_Solver::sample_fim(const int& theta) {
     vector<vector<int>> pos_res;
     int max_freq = 0;
     for (auto iter = freq.begin(); iter != freq.end(); ++ iter) {
+        // for (auto s : iter->first) cout << tuples[s].id << '\t';
+        // cout << iter->second << endl;
         if (iter->second > max_freq) {
             max_freq = iter->second;
             pos_res.clear();
@@ -781,7 +790,10 @@ void UCSKY_Solver::sample_fim(const int& theta) {
 
 void UCSKY_Solver::enum_l_subset(const vector<int>& T, int j, vector<int>& subset, int i, map<vector<int>, int>& freq) {
     if (i == l) {
-        freq[subset] += 1;
+        vector<int> temp = subset;
+        sort(temp.begin(), temp.end());
+        freq[temp] += 1;
+        return;
     }
     if (j >= T.size()) return;
     subset[i] = T[j];
@@ -893,6 +905,7 @@ void UCSKY_Solver::enum_l_subset(const vector<pair<int, double>>& T, const vecto
         }
         BigFloat prob = compute_prob(subset);
         bb(new_T, subset, prob, l - s);
+        return;
     }
     if (j >= sky.size()) return;
     subset[i] = sky[j];
