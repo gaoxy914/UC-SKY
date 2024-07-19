@@ -673,10 +673,12 @@ void UCSKY_Solver::sample_fim(const int& theta) {
         }
     }
 
-    vector<vector<int>> S(theta, vector<int>{});
-    unordered_map<int, int> freq;
+    // vector<vector<int>> S(theta, vector<int>{});
+    // unordered_map<int, int> freq;
+    map<vector<int>, int> freq;
     bool flag = false;
     for (int i = 0; i < theta; ++ i) {
+        vector<int> S;
         vector<int> degree(n, 0);
         for (int j = 0; j < n; ++ j) degree[j] = inN[j].size();
         vector<int> C = L0;
@@ -685,7 +687,8 @@ void UCSKY_Solver::sample_fim(const int& theta) {
             C.pop_back();
             double p = rand_uniform(0, 1);
             if (p <= tuples[t].prob) {
-                S[i].push_back(t);
+                // S[i].push_back(t);
+                S.push_back(t);
             } else {
                 for (auto s : outN[t]) {
                     -- degree[s];
@@ -695,10 +698,15 @@ void UCSKY_Solver::sample_fim(const int& theta) {
                 }
             }
         }
-        for (auto t : S[i]) {
-            freq[t] ++;
+        // for (auto t : S[i]) {
+        //     freq[t] ++;
+        // }
+        if (S.size() >= l) {
+            flag = true;
+            // enumearte l subset
+            vector<int> subset(l, 0);
+            enum_l_subset(S, 0, subset, 0, freq);
         }
-        if (S[i].size() >= l) flag = true;
         /* cout << S[i].size() << endl;
         for (auto t : S[i]) {
             for (auto s : S[i]) {
@@ -714,11 +722,12 @@ void UCSKY_Solver::sample_fim(const int& theta) {
         cout << "no pattern with length " << l << endl;
         return;
     }
+    // cout << "end sample, start mining...\n";
     // mining frequent itemset of size l
-    int min_sup = theta;
-    for (auto iter = freq.begin(); iter != freq.end(); ++ iter) {
-        min_sup = min(min_sup, iter->second);
-    }
+    /*nint min_sup = theta;
+    // for (auto iter = freq.begin(); iter != freq.end(); ++ iter) {
+    //     min_sup = min(min_sup, iter->second);
+    // }
     bool found = false;
     while (!found) {
         FPTree fptree(S, min_sup);
@@ -748,7 +757,36 @@ void UCSKY_Solver::sample_fim(const int& theta) {
             return;
         }
         min_sup /= 2;
+    } */
+    vector<vector<int>> pos_res;
+    int max_freq = 0;
+    for (auto iter = freq.begin(); iter != freq.end(); ++ iter) {
+        if (iter->second > max_freq) {
+            max_freq = iter->second;
+            pos_res.clear();
+            pos_res.push_back(iter->first);
+        }
     }
+    for (auto s : pos_res) {
+        BigFloat prob = compute_prob(s);
+        if (prob > ucsky_prob) {
+            ucsky_prob = prob;
+            for (int j = 0; j < l; ++ j) {
+                ucsky[j] = s[j];
+            }
+        }
+    }
+    return;
+}
+
+void UCSKY_Solver::enum_l_subset(const vector<int>& T, int j, vector<int>& subset, int i, map<vector<int>, int>& freq) {
+    if (i == l) {
+        freq[subset] += 1;
+    }
+    if (j >= T.size()) return;
+    subset[i] = T[j];
+    enum_l_subset(T, j + 1, subset, i + 1, freq);
+    enum_l_subset(T, j + 1, subset, i, freq);
 }
 
 void UCSKY_Solver::branch_bound(const double& step) {

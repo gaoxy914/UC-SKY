@@ -28,6 +28,7 @@ private:
     bool conflict(const vector<int>& set, const int& t);
     void enum_l_subset(const vector<pair<int, double>>& T, const vector<int>& sky, int s, int j, vector<int>& subset, int i);
     void enum_l_subset(int j, vector<int>& subset, int i, BigFloat& prob);
+    void enum_l_subset(const vector<int>& T, int j, vector<int>& subset, int i, map<vector<int>, int>& freq);
 public:
     UCSKY_Solver(const int& dim, const int& n, const double& center, const int& l);
     virtual ~UCSKY_Solver();

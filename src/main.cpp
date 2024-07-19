@@ -3,13 +3,15 @@
 int main(int argc, char const *argv[]) {
     /* code */
     /* int dim = 2;
-    int n = 19664;
+    int n = 1000;
     double center = 0.5;
-    string data_path = "data/iip.dat";
+    string data_path = "data/corr/";
     UCSKY_Solver solver(dim, n, center, 4);
     // solver.gen_ind_data();
-    // solver.write_data(data_path.c_str());
-    solver.load_data(data_path.c_str());
+    // solver.gen_anti_data();
+    solver.gen_corr_data();
+    solver.write_data(data_path.c_str());
+    // solver.load_data(data_path.c_str());
     // solver.print_data();
     // solver.construct_dg();
     // solver.print_data();
@@ -21,8 +23,8 @@ int main(int argc, char const *argv[]) {
     // solver.greedy();
     // solver.check_prob();
     // solver.construct_dg();
-    solver.alpha_greedy(0.002);
-    solver.print_ucsky(); */
+    // solver.alpha_greedy(0.002);
+    // solver.print_ucsky(); */
 
     if (strcmp(argv[1], "gen-data") == 0) {
         for (int d = 2; d <= 10; d += 2) {
