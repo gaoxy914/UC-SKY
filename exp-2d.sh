@@ -2,7 +2,7 @@
 
 for data in ind/ anti/ corr/
 do
-    for n in 1000 10000 50000 100000 500000 1000000
+    for n in 100 1000 10000 50000 100000 500000 1000000
     do
         timeout 1h ./main BSL $data $n 2 0.5 6 >> res.txt
         timeout 1h ./main DP $data $n 2 0.5 6 >> res.txt
