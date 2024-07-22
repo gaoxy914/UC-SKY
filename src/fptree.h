@@ -38,6 +38,7 @@ struct FPTree {
 
 
 std::set<Pattern> fptree_growth(const FPTree&);
+std::set<Pattern> fptree_growth(const FPTree&  fptree, const int& l);
 
 
 #endif  // FPTREE_H

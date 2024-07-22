@@ -88,6 +88,10 @@ bool BigFloat::operator< (const BigFloat& other) const {
     return exponent > other.exponent;
 }
  
+bool BigFloat::operator>= (const BigFloat& other) const {
+    return !(*this < other);
+}
+
 double BigFloat::log() {
     if (exponent == -1) {
         if (decimal == 1) assert("log1");

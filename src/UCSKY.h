@@ -1,8 +1,7 @@
 #ifndef __UCSKY_H__
 #define __UCSKY_H__
 
-#include "Dataset.h"
-#include "unordered_map"
+#include "Tuple.h"
 #include "Heap.h"
 #include "fptree.h"
 
@@ -14,51 +13,55 @@ private:
     double center;
     string data_path;
     vector<Tuple> tuples;
+    int nR;
     // uc-sky
     int l;
     vector<int> ucsky;
     BigFloat ucsky_prob;
     // dominant graph
-    // int nG;
-    // vector<int> L0;
-    // unordered_map<int, unordered_set<int>> inN;
-    // unordered_map<int, unordered_set<int>> outN;
+    int nG;
+    vector<vector<int>> inN;
+    vector<vector<int>> outN;
+    vector<int> degree;
+    vector<BigFloat> beta;
 
-    bool dominate(const vector<int>& set, const int& t);
-    bool conflict(const vector<int>& set, const int& t);
-    void enum_l_subset(const vector<pair<int, double>>& T, const vector<int>& sky, int s, int j, vector<int>& subset, int i);
-    void enum_l_subset(int j, vector<int>& subset, int i, BigFloat& prob);
-    void enum_l_subset(const vector<int>& T, int j, vector<int>& subset, int i, map<vector<int>, int>& freq);
+
 public:
     UCSKY_Solver(const int& dim, const int& n, const double& center, const int& l);
     virtual ~UCSKY_Solver();
     // data operation
     void gen_ind_data();
+    void gen_ind_data_2d(const int& m);
     void gen_anti_data();
+    // void gen_anti_data_2d(const int& m);
     void gen_corr_data();
+    // void gen_corr_data_2d(const int& m);
     void load_data(const char* data_path);
     void write_data(const char* data_path);
     void print_data();
-    
-    void construct_dg();
 
     // algorithm
     void loop_bsl();
     void basic_dp();
     void group_dp();
+    bool greedy();
+    bool greedy_plus(const double& step);
+    void branch_bound();
+    void sample_FIM(const int& theta);
+    int reduce_data(const double& step);
 
-    BigFloat greedy();
-    BigFloat alpha_greedy(const double& step);
-    void branch_bound(const double& step);
-    void divide(vector<pair<int, double>>& T);
-    void bb(const vector<int>& T, const vector<int>& S, const BigFloat& prob, const int& k);
-    void sample_fim(const int& theta);
-
+    // helper
     void print_ucsky();
-    void check_prob();
-    BigFloat compute_prob(const set<int>& s);
-    BigFloat compute_prob(const vector<int>& s);
-    void skyline(vector<pair<int, double>>& T, vector<int>& sky); // sky is removed from T
+    void check_ucsky();
+    void enum_l_subset(int j, vector<int>& subset, int i, BigFloat& prob);
+    bool conflict(const vector<int>& S, const int& t);
+    BigFloat compute_prob(const vector<int>& S);
+    BigFloat compute_prob(const set<int>& S);
+    void divide(vector<pair<int, double>>& T);
+    void enum_subset(const vector<pair<int, double>>& T, const vector<int>& sky, int s, int j, vector<int>& subset, int i);
+    void skyline(vector<pair<int, double>>& T, vector<int>& sky);
+    void search(const vector<int>& T, const vector<int>& S, const BigFloat& prob, const int& k);
+    bool contain(const vector<int>& T, const vector<int>& subset);
 };
 
 #endif

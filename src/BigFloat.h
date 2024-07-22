@@ -46,6 +46,7 @@ public:
     BigFloat& operator= (const double& num);
     bool operator> (const BigFloat& other) const;
     bool operator< (const BigFloat& other) const;
+    bool operator>= (const BigFloat& other) const;
     double log();
     friend BigFloat operator* (const BigFloat& left, const BigFloat& right);
     friend BigFloat operator* (const BigFloat& left, const double& right);

@@ -9,9 +9,10 @@ public:
     int dim;
     double *coord;
     double prob;
+    bool reduced;
 
     Tuple();
-    Tuple(const int& id, const int& dim, const double* coord, const double& prob);
+    Tuple(const int& id, const int& dim, const double* coord, const double& prob, const bool& reduced);
     Tuple(const Tuple& other);
     virtual ~Tuple();
     Tuple& operator= (const Tuple& other);

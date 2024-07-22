@@ -7,7 +7,7 @@ UCSKY_Solver::UCSKY_Solver(const int& dim, const int& n, const double& center, c
     this->n = n;
     this->center = center;
     this->l = l;
-    this->tuples.resize(n, Tuple(-1, dim, nullptr, 0));
+    this->tuples.resize(n, Tuple(-1, dim, nullptr, 0, false));
     ucsky_prob = BigFloat(0);
     ucsky.resize(l);
     stringstream stream;
@@ -22,16 +22,27 @@ UCSKY_Solver::~UCSKY_Solver() {
 void UCSKY_Solver::gen_ind_data() {
     double delta = min(center, 1 - center);
     double lower = center - delta, upper = center + delta;
-    if (dim == 2) { // non-repeating
-
-    } else {
-        for (int i = 0; i < n; ++ i) {
-            tuples[i].id = i;
-            for (int j = 0; j < dim; ++ j) {
-                tuples[i].coord[j] = rand_uniform(0, 1);
-            }
-            tuples[i].prob = rand_uniform(lower, upper);
+    for (int i = 0; i < n; ++ i) {
+        tuples[i].id = i;
+        for (int j = 0; j < dim; ++ j) {
+            tuples[i].coord[j] = rand_uniform(0, 1);
         }
+        tuples[i].prob = rand_uniform(lower, upper);
+    }
+}
+
+void UCSKY_Solver::gen_ind_data_2d(const int& m) {
+    double delta = min(center, 1 - center);
+    double lower = center - delta, upper = center + delta;
+    vector<double> x(m, 0);
+    for (int i = 0; i < m; ++ i) {
+        x[i] = rand_uniform(0, 1);
+    }
+    for (int i = 0; i < n; ++ i) {
+        tuples[i].id = i;
+        tuples[i].coord[0] = x[i%m];
+        tuples[i].coord[1] = rand_uniform(0, 1);
+        tuples[i].prob = rand_uniform(lower, upper);
     }
 }
 
@@ -39,20 +50,16 @@ void UCSKY_Solver::gen_anti_data() {
     double delta = min(center, 1 - center);
     double lower = center - delta, upper = center + delta;
     double x[dim];
-    if (dim == 2) {
-
-    } else {
-        for (int i = 0; i < n; ++ i) {
-            tuples[i].id = i;
-            double range = 0.5*dim + rand_normal(0, 0.05);
-            tuples[i].coord[0] = rand_uniform(0, 1)*min(1.0, range);
-            for (int j = 1; j < dim; ++ j) {
-                range -= tuples[i].coord[j - 1];
-                tuples[i].coord[j] = rand_uniform(0, 1)*min(1.0, range);
-                if (j == dim - 1) tuples[i].coord[j] = min(1.0, range);
-            }
-            tuples[i].prob = rand_uniform(lower, upper);
+    for (int i = 0; i < n; ++ i) {
+        tuples[i].id = i;
+        double range = 0.5*dim + rand_normal(0, 0.05);
+        tuples[i].coord[0] = rand_uniform(0, 1)*min(1.0, range);
+        for (int j = 1; j < dim; ++ j) {
+            range -= tuples[i].coord[j - 1];
+            tuples[i].coord[j] = rand_uniform(0, 1)*min(1.0, range);
+            if (j == dim - 1) tuples[i].coord[j] = min(1.0, range);
         }
+        tuples[i].prob = rand_uniform(lower, upper);
     }
 }
 
@@ -60,19 +67,15 @@ void UCSKY_Solver::gen_corr_data() {
     double delta = min(center, 1 - center);
     double lower = center - delta, upper = center + delta;
     double x[dim];
-    if (dim == 2) {
-
-    } else {
-        for (int i = 0; i < n; ++ i) {
-            tuples[i].id = i;
-            tuples[i].coord[0] = rand_uniform(0, 1);
-            for (int j = 1; j < dim; ++ j) {
-                do {
-                    tuples[i].coord[j] = rand_normal(tuples[i].coord[0], 0.05);
-                } while (tuples[i].coord[j] < 0 || tuples[i].coord[j] > 1);
-            }
-            tuples[i].prob = rand_uniform(lower, upper);
+    for (int i = 0; i < n; ++ i) {
+        tuples[i].id = i;
+        tuples[i].coord[0] = rand_uniform(0, 1);
+        for (int j = 1; j < dim; ++ j) {
+            do {
+                tuples[i].coord[j] = rand_normal(tuples[i].coord[0], 0.05);
+            } while (tuples[i].coord[j] < 0 || tuples[i].coord[j] > 1);
         }
+        tuples[i].prob = rand_uniform(lower, upper);
     }
 }
 
@@ -135,49 +138,14 @@ void UCSKY_Solver::print_data() {
     }
 }
 
-void UCSKY_Solver::construct_dg() {
-    int nG;
-    vector<int> L0;
-    unordered_map<int, unordered_set<int>> inN;
-    unordered_map<int, unordered_set<int>> outN;
-
-    nG = n;
+void UCSKY_Solver::loop_bsl() {
     sort(tuples.begin(), tuples.end(), [](const Tuple& t, const Tuple& s){
         return t.sum() < s.sum();
     });
-    for (int i = 0; i < nG; ++ i) {
-        if (!dominate(L0, i)) {
-            L0.push_back(i);
-        }
-        inN[i] = unordered_set<int>{};
-        outN[i] = unordered_set<int>{};
-        for (int j = 0; j < i; ++ j) {
-            if (tuples[j].dominate(tuples[i])) {
-                outN[j].insert(i);
-                inN[i].insert(j);
-            }
-        }
-    }
-    // for (int i = 0; i < nG; ++ i) {
-    //     cout << i << " degree = " << nG - inN[i].size() - outN[i].size() - 1 << endl;
-    // }
-}
-
-bool UCSKY_Solver::dominate(const vector<int>& set, const int& t) {
-    for (auto s : set) {
-        if (tuples[s].dominate(tuples[t])) return true;
-    }
-    return false;
-}
-
-bool UCSKY_Solver::conflict(const vector<int>& set, const int& t) {
-    for (auto s : set) {
-        if (s != -1 && 
-        (tuples[s].dominate(tuples[t]) || tuples[t].dominate(tuples[s]))) {
-            return true;
-        }
-    }
-    return false;
+    vector<int> subset(l);
+    for (int i = 0; i < l; ++ i) subset[i] = -1;
+    BigFloat prob(1);
+    enum_l_subset(0, subset, 0, prob);
 }
 
 void UCSKY_Solver::enum_l_subset(int j, vector<int>& subset, int i, BigFloat& prob) {
@@ -186,7 +154,6 @@ void UCSKY_Solver::enum_l_subset(int j, vector<int>& subset, int i, BigFloat& pr
         for (int p = 0; p < n; ++ p) {
             for (int q : subset) {
                 if (tuples[p].dominate(tuples[q])) {
-                    // cout << tuples[p] << endl;
                     prob_real = prob_real * (1 - tuples[p].prob);
                     break;
                 }
@@ -194,7 +161,6 @@ void UCSKY_Solver::enum_l_subset(int j, vector<int>& subset, int i, BigFloat& pr
             if (prob_real < ucsky_prob) return;
         }
         if (prob_real > ucsky_prob) {
-            // cout << "prob = " << prob_real << " ucsky_prob = " << ucsky_prob << endl;
             ucsky_prob = prob_real;
             for (int k = 0; k < l; ++ k) {
                 ucsky[k] = subset[k];
@@ -222,56 +188,45 @@ void UCSKY_Solver::enum_l_subset(int j, vector<int>& subset, int i, BigFloat& pr
     }
 }
 
-void UCSKY_Solver::loop_bsl() {
-    sort(tuples.begin(), tuples.end(), [](const Tuple& t, const Tuple& s){
-        return t.sum() < s.sum();
-    });
-    vector<int> subset(l);
-    for (int i = 0; i < l; ++ i) subset[i] = -1;
-    BigFloat prob(1);
-    enum_l_subset(0, subset, 0, prob);
-    // cout << "end enum\n";
-    // output id
-    /* for (int i = 0; i < l; ++ i) {
-        int index = ucsky[i];
-        ucsky[i] = tuples[index].id;
-    } */
+bool UCSKY_Solver::conflict(const vector<int>& S, const int& t) {
+    for (auto s : S) {
+        if (s != -1 && 
+        (tuples[s].dominate(tuples[t]) || tuples[t].dominate(tuples[s]))) {
+            return true;
+        }
+    }
+    return false;
 }
 
-BigFloat UCSKY_Solver::greedy() {
-    vector<int> res(l, 0);
-    BigFloat prob = 1;
-    // construct_dg();
+bool UCSKY_Solver::greedy() {
     sort(tuples.begin(), tuples.end(), [](const Tuple& t, const Tuple& s){
         return t.sum() < s.sum();
     });
-
     Heap<BigFloat> h = Heap<BigFloat>();
-    unordered_map<int, unordered_set<int>> inN;
-    unordered_map<int, unordered_set<int>> outN;
+    inN.resize(n);
+    outN.resize(n);
     for (int i = 0; i < n; ++ i) {
-        inN[i] = unordered_set<int>{};
-        outN[i] = unordered_set<int>{};
+        inN[i] = vector<int>{};
+        outN[i] = vector<int>{};
         BigFloat beta = tuples[i].prob;
         for (int j = 0; j < i; ++ j) {
             if (tuples[j].dominate(tuples[i])) {
-                outN[j].insert(i);
-                inN[i].insert(j);
+                outN[j].push_back(i);
+                inN[i].push_back(j);
                 beta = beta * (1 - tuples[j].prob);
             }
         }
         h.push(make_pair(beta, i));
-        // cout << beta << endl;
     }
-    // cout << "pre done\n";
     vector<bool> inH(n, true);
-    for (int i = 0; i < l && !h.empty(); ++ i) {
+    int i = 0;
+    for ( ; i < l && !h.empty(); ++ i) {
         // cout << h.size() << endl;
         auto t = h.top();
         h.pop();
         inH[t.second] = false;
-        res[i] = t.second;
-        prob = prob * t.first;
+        ucsky[i] = t.second;
+        ucsky_prob = ucsky_prob * t.first;
         // cout << i << '\t' << t.second << '\t' << t.first << endl;
         for (auto s : outN[t.second]) {
             if (inH[s]) {
@@ -291,56 +246,50 @@ BigFloat UCSKY_Solver::greedy() {
             }
         }
     }
-    // cout << prob << endl;
-    return prob;
+    if (i < l) {
+        return false;
+    }
+    return true;
 }
 
-BigFloat UCSKY_Solver::alpha_greedy(const double& step) {
-    // construct_dg();
+bool UCSKY_Solver::greedy_plus(const double& step) {
     sort(tuples.begin(), tuples.end(), [](const Tuple& t, const Tuple& s){
         return t.sum() < s.sum();
     });
-
-    unordered_map<int, unordered_set<int>> inN;
-    unordered_map<int, unordered_set<int>> outN;
-    vector<BigFloat> beta(n, 0);
-    vector<int> degree(n, 0);
+    inN.resize(n);
+    outN.resize(n);
+    beta.resize(n);
+    degree.resize(n);
     for (int i = 0; i < n; ++ i) {
-        inN[i] = unordered_set<int>{};
-        outN[i] = unordered_set<int>{};
+        inN[i] = vector<int>{};
+        outN[i] = vector<int>{};
         beta[i] = tuples[i].prob;
         for (int j = 0; j < i; ++ j) {
             if (tuples[j].dominate(tuples[i])) {
-                outN[j].insert(i);
+                outN[j].push_back(i);
                 ++ degree[j];
-                inN[i].insert(j);
+                inN[i].push_back(j);
                 ++ degree[i];
                 beta[i] = beta[i] * (1 - tuples[j].prob);
             }
         }
     }
-
     for (double alpha = 0; alpha <= 1; alpha += step) {
-        vector<int> res(l, 0);
-        BigFloat prob = 1;
-        // cout << alpha << endl;
+        ucsky_prob = 1;
         Heap<double> h = Heap<double>();
         for (int i = 0; i < n; ++ i) {
             double key1 = (1 - alpha)*beta[i].log();
             double key2 = alpha*degree[i];
-            // cout << key1 << '\t' << key2 << '\t' << inN[i].size() + outN[i].size() << endl;
             h.push(make_pair(key1 - key2, i));
         }
         vector<bool> inH(n, true);
         int i = 0;
         for ( ; i < l && !h.empty(); ++ i) {
-            // cout << h.size() << endl;
             auto t = h.top();
             h.pop();
             inH[t.second] = false;
-            res[i] = t.second;
-            prob = prob * tuples[t.second].prob;
-            // cout << i << '\t' << t.second << '\t' << t.first << endl;
+            ucsky[i] = t.second;
+            ucsky_prob = ucsky_prob * tuples[t.second].prob;
             for (auto s : outN[t.second]) {
                 if (inH[s]) {
                     inH[s] = false; h.remove(s);
@@ -361,33 +310,55 @@ BigFloat UCSKY_Solver::alpha_greedy(const double& step) {
                 }
             }
         }
-
         if (i == l) {
-            for (int i = 0; i < n; ++ i) {
-                for (int j : res) {
-                    if (tuples[i].dominate(tuples[j])) {
-                        prob = prob * (1 - tuples[i].prob);
+            for (int j = 0; j < n; ++ j) {
+                for (int k : ucsky) {
+                    if (tuples[j].dominate(tuples[k])) {
+                        ucsky_prob = ucsky_prob * (1 - tuples[j].prob);
                         break;
                     }
                 }
             }
-            // cout << prob << endl;
-
-            // for (int i = 0; i < l; ++ i) {
-            //     for (int j = 0; j < i; ++ j) {
-            //         if (tuples[res[i]].dominate(tuples[res[j]]) || tuples[res[j]].dominate(tuples[res[i]]))
-            //             cout << "conflict\n";
-            //     }
-            // }
-
-            ucsky_prob = prob;
-            ucsky = res;
-
-            return prob;
+            return true;
         }
     }
+    cout << "fail to find valid solution.\n";
+    return false;
+}
 
-    return 0;
+int UCSKY_Solver::reduce_data(const double& step) {
+    if (greedy_plus(step)) {
+        vector<pair<double, int>> prob_id;
+        prob_id.resize(n);
+        for (int i = 0; i < n; ++ i) {
+            prob_id[i] = make_pair(tuples[i].prob, i);
+        }
+        sort(prob_id.begin(), prob_id.end(), [](const pair<double, int>& t, const pair<double, int>& s){
+            return t.first > s.first;
+        });
+        nR = 0;
+        for (int i = 0; i < n; ++ i) {
+            tuples[i].reduced = true;
+            if (beta[i] > ucsky_prob) {
+                int j = l, k = 0;
+                BigFloat temp = beta[i];
+                while (j > 0 && k < n) {
+                    int id = prob_id[k].second;
+                    if (!tuples[id].dominate(tuples[i]) && !tuples[i].dominate(tuples[id])) {
+                        temp = temp * tuples[id].prob;
+                        -- j;
+                    }
+                    ++ k;
+                }
+                if (temp > ucsky_prob) {
+                    ++ nR;
+                    // reduced_tuples.push_back(tuples[i]);
+                    tuples[i].reduced = false;
+                }
+            }
+        }
+    }
+    return nR;
 }
 
 void UCSKY_Solver::basic_dp() {
@@ -397,58 +368,56 @@ void UCSKY_Solver::basic_dp() {
             if (t.coord[1] < s.coord[1]) return true;
         }
         return false;
-    }); 
-    vector<unordered_map<int, BigFloat>> gamma(n);
-    for (int i = 1; i < n; ++ i) {
+    });
+    vector<int> reduced_tuples;
+    for (int i = 0; i < n; ++ i) {
+        if (!tuples[i].reduced) reduced_tuples.push_back(i);
+    }
+    assert(reduced_tuples.size() == nR);
+    int m = nR < n ? nR : n;
+    BigFloat** gamma = new BigFloat*[m];
+    for (int i = 0; i < m; ++ i) gamma[i] = new BigFloat[m];
+    for (int i = 0; i < m; ++ i) {
         for (int j = 0; j < i; ++ j) {
-            if (!tuples[j].dominate(tuples[i])) {
-                BigFloat g(1);
-                for (int k = 0; k < i; ++ k) {
-                    if (tuples[k].dominate(tuples[i]) && !tuples[k].dominate(tuples[j])) {
-                        g = g*(1 - tuples[k].prob);
+            int t = reduced_tuples[i], s = reduced_tuples[j];
+            if (!tuples[s].dominate(tuples[t])) {
+                gamma[i][j] = 1;
+                for (int k = s + 1; k < t; ++ k) {
+                    if (tuples[k].dominate(tuples[t])) {
+                        gamma[i][j] = gamma[i][j] * (1 - tuples[k].prob);
                     }
                 }
-                // gamma.insert({make_pair(tuples[i].id, tuples[j].id), g});
-                gamma[i].insert({j, g});
             }
         }
     }
-
-    /* for (int i = 0; i < n; ++ i) {
-        for (auto it = gamma[i].begin(); it != gamma[i].end(); ++ it) {
-            cout << tuples[i].id << ", " << tuples[it->first] << ", " << it->second << endl;
-        }
-    } */
-
-    // cout << "gamma done\n";
-
-    int** Y = new int*[n];
-    BigFloat** cost = new BigFloat*[n];
-    for (int i = 0; i < n; ++ i) {
+    // cout << "precompute gamma\n";
+    int** Y = new int*[m];
+    BigFloat** cost = new BigFloat*[m];
+    for (int i = 0; i < m; ++ i) {
         Y[i] = new int[l + 1];
         cost[i] = new BigFloat[l + 1];
     }
-    // dp
     for (int k = 1; k <= l; ++ k) {
-        // cout << "done " << k << endl;
         if (k == 1) {
-            for (int i = 0; i < n; ++ i) {
+            for (int i = 0; i < m; ++ i) {
+                int t = reduced_tuples[i];
                 Y[i][k] = i;
-                cost[i][k] = BigFloat(tuples[i].prob);
-                for (int j = 0; j < i; ++ j) {
-                    if (tuples[j].dominate(tuples[i])) {
+                cost[i][k] = BigFloat(tuples[t].prob);
+                for (int j = 0; j < t; ++ j) {
+                    if (tuples[j].dominate(tuples[t])) {
                         cost[i][k] = cost[i][k] * (1 - tuples[j].prob);
                     }
                 }
             }
         } else {
-            for (int i = 0; i < n; ++ i) {
+            for (int i = 0; i < m; ++ i) {
                 Y[i][k] = -1;
                 cost[i][k] = BigFloat(0);
+                int t = reduced_tuples[i];
                 for (int j = 0; j < i; ++ j) {
-                    if (!tuples[j].dominate(tuples[i]) && Y[j][k - 1] != -1) {
-                        BigFloat temp = tuples[i].prob;
-                        // temp = temp * gamma[make_pair(tuples[i].id, tuples[j].id)];
+                    int s = reduced_tuples[j];
+                    if (!tuples[s].dominate(tuples[t]) && Y[j][k - 1] != -1) {
+                        BigFloat temp = tuples[t].prob;
                         temp = temp * gamma[i][j];
                         temp = temp * cost[j][k - 1];
                         if (temp > cost[i][k]) {
@@ -460,33 +429,26 @@ void UCSKY_Solver::basic_dp() {
             }
         }
     }
-
-    /* for (int i = 0; i < n; ++ i) {
-        for (int k = 1; k <= l; ++ k) {
-            cout << "[" << i << ", " << k << ", " << cost[i][k] << ", " << Y[i][k] << "]";
-        }
-        cout << endl;
-    } */
-    // collect result
+    // cout << "dp computation\n";
     int index = -1;
-    for (int i = 0; i < n; ++ i) {
-        if (cost[i][l] > ucsky_prob) {
+    for (int i = 0; i < m; ++ i) {
+        if (cost[i][l] >= ucsky_prob) {
             ucsky_prob = cost[i][l];
             index = i;
         }
     }
     for (int i = l; i >= 1; -- i) {
-        // output id
-        // ucsky[i - 1] = tuples[index].id;
-        ucsky[i - 1] = index;
+        ucsky[i - 1] = reduced_tuples[index];
         index = Y[index][i];
     }
-    for (int i = 0; i < n; ++ i) {
+    for (int i = 0; i < m; ++ i) {
         delete[] Y[i];
         delete[] cost[i];
+        delete[] gamma[i];
     }
     delete[] Y;
     delete[] cost;
+    delete[] gamma;
 }
 
 void UCSKY_Solver::group_dp() {
@@ -497,19 +459,26 @@ void UCSKY_Solver::group_dp() {
         }
         return false;
     });
+    vector<int> reduced_tuples;
+    for (int i = 0; i < n; ++ i) {
+        if (!tuples[i].reduced) reduced_tuples.push_back(i);
+    }
+    assert(reduced_tuples.size() == nR);
+    int m = nR < n ? nR : n;
     // group tuples
     vector<vector<int>> groups;
     groups.push_back(vector<int>{0});
     vector<double> group2x;
-    group2x.push_back(tuples[0].coord[0]);
-    for (int i = 1; i < n; ++ i) {
-        if (tuples[i].coord[0] != tuples[i - 1].coord[0]) {
+    group2x.push_back(tuples[reduced_tuples[0]].coord[0]);
+    for (int i = 1; i < m; ++ i) {
+        if (tuples[reduced_tuples[i]].coord[0] != tuples[reduced_tuples[i - 1]].coord[0]) {
             groups.push_back(vector<int>{i});
-            group2x.push_back(tuples[i].coord[0]);
+            group2x.push_back(tuples[reduced_tuples[i]].coord[0]);
         } else {
             groups.back().push_back(i);
         }
     }
+
     struct aux{
         double y;
         int index1;
@@ -520,178 +489,161 @@ void UCSKY_Solver::group_dp() {
         reverse(groups[q].begin(), groups[q].end());
         A[q].resize(groups[q].size());
         for (int i = 0; i < groups[q].size(); ++ i) {
-            A[q][i] = {tuples[groups[q][i]].coord[1], -1, -1};
+            A[q][i] = {tuples[reduced_tuples[groups[q][i]]].coord[1], -1, -1};
         }
     }
-    
-    vector<unordered_map<int, BigFloat>> gamma(n);
+
+    BigFloat** gamma = new BigFloat*[m];
+    for (int i = 0; i < m; ++ i) gamma[i] = new BigFloat[groups.size()];
     for (int q = 0; q < groups.size(); ++ q) {
         for (int i : groups[q]) {
+            int t = reduced_tuples[i];
             for (int p = 0; p < q; ++ p) {
-                BigFloat g(1);
-                Tuple virtual_t(-1, 2, nullptr, 0);
+                gamma[i][p] = 1;
+                Tuple virtual_t(-1, 2, nullptr, 0, false);
                 virtual_t.coord[0] = group2x[p];
-                virtual_t.coord[1] = tuples[i].coord[1];
-                for (int k = 0; k < i; ++ k) {
-                    if (tuples[k].dominate(tuples[i]) && !tuples[k].dominate(virtual_t)) {
-                        g = g*(1 - tuples[k].prob);
+                virtual_t.coord[1] = tuples[t].coord[1];
+                for (int k = 0; k < t; ++ k) {
+                    if (tuples[k].dominate(tuples[t]) && !tuples[k].dominate(virtual_t)) {
+                        gamma[i][p] = gamma[i][p] * (1 - tuples[k].prob);
                     }
                 }
-                gamma[i].insert({p, g});
             }
         }
     }
-    // cout << "gamma rdy.\n";
-    /* for (int q = 0; q < groups.size(); ++ q) {
-        for (int i : groups[q]) {
-            for (int p = 0; p < q; ++ p) {
-                cout << tuples[i].id << ", " << group2x[p] << ", " << gamma[i][p] << endl;
-            }
-        }
-    } */
-
-    int** Y = new int*[n];
-    BigFloat** cost = new BigFloat*[n];
-    for (int i = 0; i < n; ++ i) {
+    int** Y = new int*[m];
+    BigFloat** cost = new BigFloat*[m];
+    for (int i = 0; i < m; ++ i) {
         Y[i] = new int[l + 1];
         cost[i] = new BigFloat[l + 1];
     }
-
     for (int k = 1; k <= l; ++ k) {
         for (int q = 0; q < groups.size(); ++ q) {
-            for (int i = 0; i < groups[q].size(); ++ i) {
-                int t = groups[q][i]; // index of current in tuples
+            for (int u = 0; u < groups[q].size(); ++ u) {
+                int i = groups[q][u];
+                int t = reduced_tuples[i];
                 if (k == 1) {
-                    Y[t][k] = t;
-                    cost[t][k] = BigFloat(tuples[t].prob);
+                    Y[i][k] = i;
+                    cost[i][k] = BigFloat(tuples[t].prob);
                     for (int j = 0; j < t; ++ j) {
                         if (tuples[j].dominate(tuples[t])) {
-                            cost[t][k] = cost[t][k] * (1 - tuples[j].prob);
+                            cost[i][k] = cost[i][k] * (1 - tuples[j].prob);
                         }
                     }
                 } else {
-                    Y[t][k] = -1;
-                    cost[t][k] = BigFloat(0);
+                    Y[i][k] = -1;
+                    cost[i][k] = 0;
                     for (int p = 0; p < q; ++ p) {
-                        int l = 0, r = A[p].size();
+                        int left = 0, right = A[p].size();
                         int index = -1;
-                        while (l < r) {
-                            index = (l + r)/2;
+                        while (left < right) {
+                            index = (left + right)/2;
                             if (A[p][index].y <= tuples[t].coord[1]) {
-                                r = index;
+                                right = index;
                             } else {
-                                l = index + 1;
+                                left = index + 1;
                             }
                         }
-                        -- l;
-                        if (l >= 0 && A[p][l].y > tuples[t].coord[1]) {
-                            int j = k%2 == 0 ? A[p][l].index2 : A[p][l].index1;
+                        -- left;
+                        if (left >= 0 && A[p][left].y > tuples[t].coord[1]) {
+                            int j = k%2 == 0 ? A[p][left].index2 : A[p][left].index1;
                             if (Y[j][k - 1] != -1) {
                                 BigFloat temp = tuples[t].prob;
-                                temp = temp * gamma[t][p];
-                                temp = temp * cost[j][k - 1];    
-                                if (temp > cost[t][k]) {
-                                    cost[t][k] = temp;
-                                    Y[t][k] = j;
+                                temp = temp * gamma[i][p];
+                                temp = temp * cost[j][k - 1];
+                                if (temp > cost[i][k]) {
+                                    cost[i][k] = temp;
+                                    Y[i][k] = j;
                                 }
                             }
                         }
                     }
                 }
-                // update A
                 if (k%2 == 0) {
-                    if (i == 0) { A[q][i].index1 = t; }
+                    if (u == 0) { A[q][u].index1 = i; }
                     else {
-                        if (cost[t][k] > cost[A[q][i - 1].index1][k]) {
-                            A[q][i].index1 = t;
+                        if (cost[i][k] > cost[A[q][u - 1].index1][k]) {
+                            A[q][u].index1 = i;
                         } else {
-                            A[q][i].index1 = A[q][i - 1].index1;
+                            A[q][u].index1 = A[q][u - 1].index1;
                         }
                     }
                 } else {
-                    if (i == 0) { A[q][i].index2 = t; }
+                    if (u == 0) { A[q][u].index2 = i; }
                     else {
-                        if (cost[t][k] > cost[A[q][i - 1].index2][k]) {
-                            A[q][i].index2 = t;
+                        if (cost[i][k] > cost[A[q][u - 1].index2][k]) {
+                            A[q][u].index2 = i;
                         } else {
-                            A[q][i].index2 = A[q][i - 1].index2;
+                            A[q][u].index2 = A[q][u - 1].index2;
                         }
                     }
                 }
             }
         }
     }
-
-    /* for (int i = 0; i < n; ++ i) {
-        for (int k = 1; k <= l; ++ k) {
-            cout << "[" << i << ", " << k << ", " << cost[i][k] << ", " << Y[i][k] << "]";
-        }
-        cout << endl;
-    } */
-    
-
     int index = -1;
-    for (int i = 0; i < n; ++ i) {
-        if (cost[i][l] > ucsky_prob) {
+    for (int i = 0; i < m; ++ i) {
+        if (cost[i][l] >= ucsky_prob) {
             ucsky_prob = cost[i][l];
             index = i;
         }
     }
     for (int i = l; i >= 1; -- i) {
-        // output id
-        // ucsky[i - 1] = tuples[index].id;
-        ucsky[i - 1] = index;
+        ucsky[i - 1] = reduced_tuples[index];
         index = Y[index][i];
     }
-    for (int i = 0; i < n; ++ i) {
+    for (int i = 0; i < m; ++ i) {
         delete[] Y[i];
         delete[] cost[i];
+        delete[] gamma[i];
     }
     delete[] Y;
     delete[] cost;
+    delete[] gamma;
 }
 
-void UCSKY_Solver::sample_fim(const int& theta) {
-    srand((unsigned)time(nullptr));
-    srand48((unsigned)time(nullptr));
-
-    sort(tuples.begin(), tuples.end(), [](const Tuple& t, const Tuple& s){
-        return t.sum() < s.sum();
-    });
-
-    vector<int> L0;
-    unordered_map<int, unordered_set<int>> inN;
-    unordered_map<int, unordered_set<int>> outN;
+void UCSKY_Solver::branch_bound() {
+    vector<int> reduced_tuples;
     for (int i = 0; i < n; ++ i) {
-        if (!dominate(L0, i)) {
-            L0.push_back(i);
-        }
-        inN[i] = unordered_set<int>{};
-        outN[i] = unordered_set<int>{};
-        for (int j = 0; j < i; ++ j) {
-            if (tuples[j].dominate(tuples[i])) {
-                outN[j].insert(i);
-                inN[i].insert(j);
-            }
-        }
+        if (!tuples[i].reduced) reduced_tuples.push_back(i);
     }
+    assert(reduced_tuples.size() == nR);
+    int m = nR < n ? nR : n;
+    vector<int> S;
+    BigFloat prob(0);
+    search(reduced_tuples, S, prob, l);
+    /* vector<pair<int, double>> reduced_tuples;
+    for (int i = 0; i < n; ++ i) {
+        if (!tuples[i].reduced) reduced_tuples.push_back(make_pair(i, tuples[i].sum()));
+    }
+    assert(reduced_tuples.size() == nR);
+    int m = nR < n ? nR : n;
+    divide(reduced_tuples); */
+}
 
-    // vector<vector<int>> S(theta, vector<int>{});
-    // unordered_map<int, int> freq;
-    map<vector<int>, int> freq;
+void UCSKY_Solver::sample_FIM(const int& theta) {
+    vector<int> reduced_tuples;
+    for (int i = 0; i < n; ++ i) {
+        if (!tuples[i].reduced) reduced_tuples.push_back(i);
+    }
+    assert(reduced_tuples.size() == nR);
+    int m = nR < n ? nR : n;
     bool flag = false;
+    vector<vector<int>> S(theta, vector<int>{});
+    int min_sup = 0;
+    vector<int> subset(l);
     for (int i = 0; i < theta; ++ i) {
-        vector<int> S;
-        vector<int> degree(n, 0);
-        for (int j = 0; j < n; ++ j) degree[j] = inN[j].size();
-        vector<int> C = L0;
+        vector<int> C;
+        for (int j = 0; j < n; ++ j) {
+            degree[j] = inN[j].size();
+            if (degree[j] == 0) C.push_back(j);
+        }
         while (!C.empty()) {
             int t = C.back();
             C.pop_back();
             double p = rand_uniform(0, 1);
             if (p <= tuples[t].prob) {
-                // S[i].push_back(t);
-                S.push_back(t);
+                if (!tuples[t].reduced) S[i].push_back(t);
             } else {
                 for (auto s : outN[t]) {
                     -- degree[s];
@@ -701,172 +653,75 @@ void UCSKY_Solver::sample_fim(const int& theta) {
                 }
             }
         }
-        // for (auto t : S[i]) {
-        //     freq[t] ++;
-        // }
-        if (S.size() >= l) {
+        if (S[i].size() >= l) {
             flag = true;
-            // enumearte l subset
-            // cout << i << '\t';
-            // for (auto s : S) cout << tuples[s].id << '\t';
-            // cout << endl;
-            vector<int> subset(l, 0);
-            enum_l_subset(S, 0, subset, 0, freq);
-            // cout << "end enum\n";
-        }
-        /* cout << S[i].size() << endl;
-        for (auto t : S[i]) {
-            for (auto s : S[i]) {
-                if (t != s) {
-                    if (tuples[t].dominate(tuples[s]) || tuples[s].dominate(tuples[t])) {
-                        cout << "conflict\n";
-                    }
-                }
+            if (contain(S[i], ucsky)) {
+                ++ min_sup;
             }
-        } */
+        }
     }
     if (!flag) {
         cout << "no pattern with length " << l << endl;
         return;
     }
-    // cout << "end sample, start mining...\n";
-    // mining frequent itemset of size l
-    /*nint min_sup = theta;
-    // for (auto iter = freq.begin(); iter != freq.end(); ++ iter) {
-    //     min_sup = min(min_sup, iter->second);
-    // }
-    bool found = false;
-    while (!found) {
-        FPTree fptree(S, min_sup);
-        set<Pattern> patterns = fptree_growth(fptree);
-        int max_freq = 0;
-        unordered_map<int, vector<set<int>>> l_set;
-        // cout << patterns.size() << endl;
-        for (auto p : patterns) {
-            if (p.first.size() == l) {
-                found = true;
-                max_freq = max(max_freq, (int)p.second);
-                l_set[p.second].push_back(p.first);
-            }
-        }
-        if (found) {
-            // cout << l_set[max_freq].size() << endl;
-            for (auto s : l_set[max_freq]) {
-                BigFloat prob = compute_prob(s);
-                if (prob > ucsky_prob) {
-                    ucsky_prob = prob;
-                    int j = 0;
-                    for (auto k : s) {
-                        ucsky[j ++] = k;
-                    }
-                }
-            }
-            return;
-        }
-        min_sup /= 2;
-    } */
-    vector<vector<int>> pos_res;
+    min_sup = max(min_sup, 1);
+    FPTree fptree(S, min_sup);
+    // set<Pattern> patterns = fptree_growth(fptree, l);
+    set<Pattern> patterns = fptree_growth(fptree);
     int max_freq = 0;
-    for (auto iter = freq.begin(); iter != freq.end(); ++ iter) {
-        // for (auto s : iter->first) cout << tuples[s].id << '\t';
-        // cout << iter->second << endl;
-        if (iter->second > max_freq) {
-            max_freq = iter->second;
-            pos_res.clear();
-            pos_res.push_back(iter->first);
+    unordered_map<int, vector<set<int>>> l_set;
+    // cout << patterns.size() << endl;
+    for (auto p : patterns) {
+        if (p.first.size() == l) {
+            max_freq = max(max_freq, (int)p.second);
+            l_set[p.second].push_back(p.first);
         }
     }
-    for (auto s : pos_res) {
+    for (auto s : l_set[max_freq]) {
         BigFloat prob = compute_prob(s);
         if (prob > ucsky_prob) {
             ucsky_prob = prob;
-            for (int j = 0; j < l; ++ j) {
-                ucsky[j] = s[j];
+            int j = 0;
+            for (auto k : s) {
+                ucsky[j ++] = k;
             }
         }
     }
-    return;
-}
-
-void UCSKY_Solver::enum_l_subset(const vector<int>& T, int j, vector<int>& subset, int i, map<vector<int>, int>& freq) {
-    if (i == l) {
-        vector<int> temp = subset;
-        sort(temp.begin(), temp.end());
-        freq[temp] += 1;
-        return;
-    }
-    if (j >= T.size()) return;
-    subset[i] = T[j];
-    enum_l_subset(T, j + 1, subset, i + 1, freq);
-    enum_l_subset(T, j + 1, subset, i, freq);
-}
-
-void UCSKY_Solver::branch_bound(const double& step) {
-    // double step = 0.002;
-    BigFloat lb = alpha_greedy(step);
-
-    vector<pair<double, int>> prob_id;
-    prob_id.resize(n);
-    for (int i = 0; i < n; ++ i) {
-        prob_id[i] = make_pair(tuples[i].prob, i);
-    }
-    sort(prob_id.begin(), prob_id.end(), [](const pair<double, int>& t, const pair<double, int>& s){
-        return t.first > s.first;
-    });
-
-    vector<int> reduced_D;
-    // vector<pair<int, double>> reduced_D;
-    if (lb > 0) { // preprocess
-        for (int i = 0; i < n; ++ i) {
-            BigFloat beta = tuples[i].prob;
-            for (int j = 0; j < i; ++ j) {
-                if (tuples[j].dominate(tuples[i])) {
-                    beta = beta * (1 - tuples[j].prob);
-                }
-            }
-            if (beta > lb) {
-                int j = l;
-                int k = 0;
-                while (j > 0 && k < n) {
-                    int id = prob_id[k].second;
-                    if (!tuples[id].dominate(tuples[i]) && !tuples[i].dominate(tuples[id])) {
-                        beta = beta * tuples[id].prob;
-                        -- j;
-                    }
-                    ++ k;
-                }
-                if (beta > lb) {
-                    reduced_D.push_back(i);
-                    // reduced_D.push_back(make_pair(i, tuples[i].sum()));
-                }
-            }
-        }
-    }
-    // lb maintained by ucsky_prob
-    // cout << reduced_D.size() << endl;
-    vector<int> S;
-    BigFloat prob(0);
-    bb(reduced_D, S, prob, l);
-    /* vector<pair<int, double>> sky;
-    cout << reduced_D.size() << endl;
-    skyline(reduced_D, sky);
-    for (auto t : sky) {
-        cout << tuples[t.first] << endl;
-    }
-    cout << reduced_D.size() << '\t' << sky.size() << endl; */
-    // divide(reduced_D);
 }
 
 void UCSKY_Solver::divide(vector<pair<int, double>>& T) {
     vector<int> sky;
     skyline(T, sky);
-    for (int i = 0; i < min(l, (int)sky.size()); ++ i) {
+    for (int i = min(l, (int)sky.size()); i >= 0; -- i) {
         if (i == 0 && T.size() >= l) divide(T);
         else {
-            vector<int> subset;
-            enum_l_subset(T, sky, i, 0, subset, 0);
+            vector<int> subset(i, -1);
+            enum_subset(T, sky, i, 0, subset, 0);
         }
     }
+}
+
+void UCSKY_Solver::enum_subset(const vector<pair<int, double>>& T, const vector<int>& sky, int s, int j, vector<int>& subset, int i) {
+    if (i == s) {
+        vector<int> new_T;
+        for (auto t : T) {
+            for (auto s : subset) {
+                if (!tuples[s].dominate(tuples[t.first])) {
+                    new_T.push_back(t.first);
+                    break;
+                }
+            }
+        }
+        if (new_T.size() >= l - s) {
+            BigFloat prob = compute_prob(subset);
+            search(new_T, subset, prob, l - s);
+        }
+        return;
+    }
+    if (j >= sky.size()) return;
+    subset[i] = sky[j];
+    enum_subset(T, sky, s, j + 1, subset, i + 1);
+    enum_subset(T, sky, s, j + 1, subset, i);
 }
 
 void UCSKY_Solver::skyline(vector<pair<int, double>>& T, vector<int>& sky) {
@@ -893,27 +748,7 @@ void UCSKY_Solver::skyline(vector<pair<int, double>>& T, vector<int>& sky) {
     }
 }
 
-void UCSKY_Solver::enum_l_subset(const vector<pair<int, double>>& T, const vector<int>& sky, int s, int j, vector<int>& subset, int i) {
-    if (i == s) {
-        vector<int> new_T;
-        for (auto t : T) {
-            for (auto s : subset) {
-                if (!tuples[t.first].dominate(tuples[s]) && !tuples[s].dominate(tuples[t.first])) {
-                    new_T.push_back(t.first);
-                }
-            }
-        }
-        BigFloat prob = compute_prob(subset);
-        bb(new_T, subset, prob, l - s);
-        return;
-    }
-    if (j >= sky.size()) return;
-    subset[i] = sky[j];
-    enum_l_subset(T, sky, s, j + 1, subset, i + 1);
-    enum_l_subset(T, sky, s, j + 1, subset, i);
-}
-
-void UCSKY_Solver::bb(const vector<int>& T, const vector<int>& S, const BigFloat& prob, const int& k) {
+void UCSKY_Solver::search(const vector<int>& T, const vector<int>& S, const BigFloat& prob, const int& k) {
     if (k == 0) {
         if (prob > ucsky_prob) {
             ucsky_prob = prob;
@@ -923,9 +758,8 @@ void UCSKY_Solver::bb(const vector<int>& T, const vector<int>& S, const BigFloat
     }
     if (T.size() < k) return;
     if (prob < ucsky_prob) return;
-    
-    vector<double> prob_T;
-    prob_T.resize(T.size());
+
+    vector<double> prob_T(T.size());
     for (int i = 0; i < T.size(); ++ i) {
         prob_T[i] = tuples[T[i]].prob;
     }
@@ -948,20 +782,18 @@ void UCSKY_Solver::bb(const vector<int>& T, const vector<int>& S, const BigFloat
         vector<int> new_S = S;
         new_S.push_back(T[i]);
         BigFloat new_S_prob = compute_prob(new_S);
-        bb(new_T, new_S, new_S_prob, k - 1);
+        search(new_T, new_S, new_S_prob, k - 1);
     }
 }
 
-void UCSKY_Solver::print_ucsky() {
-    cout << "UCSKY: ";
-    for (int i : ucsky) {
-        cout << tuples[i].id << ", ";
-        // cout << tuples[i] << endl;
+void UCSKY_Solver::check_ucsky() {
+    for (int i = 0; i < l; ++ i) {
+        for (int j = 0; j < i; ++ j) {
+            if (tuples[ucsky[i]].dominate(tuples[ucsky[j]]) || tuples[ucsky[j]].dominate(tuples[ucsky[i]])) {
+                cout << "conflict (" << tuples[ucsky[i]].id << ", " << tuples[ucsky[j]].id << ")\n";
+            }
+        }
     }
-    cout << "\t Prob: " << ucsky_prob << endl;
-}
-
-void UCSKY_Solver::check_prob() {
     BigFloat prob(1);
     for (int i = 0; i < n; ++ i) {
         for (int j : ucsky) {
@@ -977,35 +809,57 @@ void UCSKY_Solver::check_prob() {
     cout << prob << '\t' << ucsky_prob << endl;
 }
 
+void UCSKY_Solver::print_ucsky() {
+    cout << "UCSKY: ";
+    for (int i : ucsky) {
+        cout << tuples[i] << ", ";
+        // cout << tuples[i] << endl;
+    }
+    cout << "\t Prob: " << ucsky_prob << endl;
+}
 
-BigFloat UCSKY_Solver::compute_prob(const set<int>& s) {
+BigFloat UCSKY_Solver::compute_prob(const vector<int>& S) {
     BigFloat prob(1);
     for (int i = 0; i < n; ++ i) {
-        for (int j : s) {
+        for (int j : S) {
             if (tuples[i].dominate(tuples[j])) {
                 prob = prob * (1 - tuples[i].prob);
                 break;
             }
         }
     }
-    for (int j : s) {
+    for (int j : S) {
         prob = prob * tuples[j].prob;
     }
     return prob;
 }
 
-BigFloat UCSKY_Solver::compute_prob(const vector<int>& s) {
+BigFloat UCSKY_Solver::compute_prob(const set<int>& S) {
     BigFloat prob(1);
     for (int i = 0; i < n; ++ i) {
-        for (int j : s) {
+        for (int j : S) {
             if (tuples[i].dominate(tuples[j])) {
                 prob = prob * (1 - tuples[i].prob);
                 break;
             }
         }
     }
-    for (int j : s) {
+    for (int j : S) {
         prob = prob * tuples[j].prob;
     }
     return prob;
+}
+
+bool UCSKY_Solver::contain(const vector<int>& T, const vector<int>& subset) {
+    for (auto s : subset) {
+        bool found = false;
+        for (auto t : T) {
+            if (s == t) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    return true;
 }

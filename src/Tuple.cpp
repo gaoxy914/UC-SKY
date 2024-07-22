@@ -5,12 +5,14 @@ Tuple::Tuple() {
     dim = 0;
     coord = nullptr;
     prob = 0;
+    reduced = false;
 }
 
-Tuple::Tuple(const int& id, const int& dim, const double* coord, const double& prob) {
+Tuple::Tuple(const int& id, const int& dim, const double* coord, const double& prob, const bool& reduced) {
     this->id = id;
     this->dim = dim;
     this->prob = prob;
+    this->reduced = reduced;
     this->coord = new double[this->dim];
     if (coord != nullptr) {
         memcpy(this->coord, coord, this->dim*sizeof(double));
@@ -23,6 +25,7 @@ Tuple::Tuple(const Tuple& other) {
     id = other.id;
     dim = other.dim;
     prob = other.prob;
+    reduced = other.reduced;
     coord = new double[dim];
     memcpy(coord, other.coord, dim*sizeof(double));
 }
@@ -34,12 +37,14 @@ Tuple::~Tuple() {
     }
     dim = 0;
     prob = 0;
+    reduced = false;
 }
 
 Tuple& Tuple::operator= (const Tuple& other) {
     if (&other != this) {
         id = other.id;
         prob = other.prob;
+        reduced = other.reduced;
         if (dim != other.dim) {
             dim = other.dim;
             if (coord != nullptr) {
