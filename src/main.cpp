@@ -67,7 +67,6 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(argv[1], "PDBB") == 0) {
             gettimeofday(&start, nullptr);
             nR = solver.reduce_data(step);
-            cout << nR << endl;
             solver.branch_bound();
             gettimeofday(&end, nullptr);
             seconds = end.tv_sec - start.tv_sec;
